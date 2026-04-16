@@ -1,0 +1,19 @@
+# 数据库相关
+*.db
+*.sqlite
+*.sqlite3
+.env
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 本地配置
+config.local.py
+
+# IDE
+.vscode/
+.idea/
+
+# 日志
+*.log

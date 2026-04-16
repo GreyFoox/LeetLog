@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>刷题日志</title></head>
+<body>
+    <h2>刷题日志</h2>
+    <div>
+        <input type="number" id="pid" placeholder="题号" onblur="loadTitle()"> <span id="titleDisplay"></span>
+        <br>
+        <input type="number" id="time" placeholder="分钟数">
+        <br>
+        <textarea id="note" rows="2" placeholder="笔记"></textarea>
+        <br>
+        <button onclick="add()">添加记录</button>
+    </div>
+    <hr>
+    <div id="list"></div>
+
+    <script>
+        const API = 'http://127.0.0.1:5000';
+        let currentTitle = '';
+
+        async function loadList() {
+            let res = await fetch(API + '/list');
+            let logs = await res.json();
+            let html = '';
+            for (let log of logs) {
+                html += `<div style="border:1px solid #ccc; margin:8px 0; padding:8px">
+                    <b>${log.problem_id}. ${log.problem_title}</b> 用时 ${log.time_spent} 分钟<br>
+                    笔记: ${log.note || '无'}<br>
+                    时间: ${new Date(log.created_at).toLocaleString()}<br>
+                    <button onclick="del(${log.id})">删除</button>
+                </div>`;
+            }
+            document.getElementById('list').innerHTML = html || '暂无记录';
+        }
+
+        async function loadTitle() {
+            let pid = document.getElementById('pid').value;
+            if (!pid) return;
+            let res = await fetch(API + '/title/' + pid);
+            let data = await res.json();
+            currentTitle = data.title;
+            document.getElementById('titleDisplay').innerText = currentTitle;
+        }
+
+        async function add() {
+            let pid = document.getElementById('pid').value;
+            let time = document.getElementById('time').value;
+            let note = document.getElementById('note').value;
+            if (!pid || !time) return alert('请填写题号和分钟数');
+            if (!currentTitle) {
+                await loadTitle();
+                if (!currentTitle) {
+                    alert('无法获取题目标题，请检查题号');
+                    return;
+                }
+            }
+            await fetch(API + '/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    problem_id: parseInt(pid),
+                    problem_title: currentTitle,
+                    time_spent: parseInt(time),
+                    note: note
+                })
+            });
+            document.getElementById('pid').value = '';
+            document.getElementById('time').value = '';
+            document.getElementById('note').value = '';
+            document.getElementById('titleDisplay').innerText = '';
+            currentTitle = '';
+            loadList();
+        }
+
+        async function del(id) {
+            if (confirm('删除？')) {
+                await fetch(API + '/delete/' + id, {method: 'DELETE'});
+                loadList();
+            }
+        }
+
+        loadList();
+    </script>
+</body>
+</html>
