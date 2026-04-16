@@ -1,106 +1,86 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="UTF-8">
-    <title>LeetCode 刷题日志</title>
-    <style>
-        body { font-family: Arial; max-width: 600px; margin: 20px auto; padding: 10px; }
-        .form-group { margin-bottom: 10px; }
-        input, textarea { width: 100%; padding: 8px; margin-top: 4px; }
-        button { padding: 8px 16px; margin-right: 8px; }
-        .record { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
-        .delete-btn { background-color: #ff4444; color: white; border: none; cursor: pointer; }
-    </style>
-</head>
+<head><meta charset="UTF-8"><title>刷题日志</title></head>
 <body>
-    <h2>📘 LeetCode 刷题日志</h2>
-
-    <div class="form-group">
-        <label>题号：</label>
-        <input type="number" id="problemId" placeholder="例如 1">
+    <h2>刷题日志</h2>
+    <div>
+        <input type="number" id="pid" placeholder="题号" onblur="loadTitle()"> <span id="titleDisplay"></span>
+        <br>
+        <input type="number" id="time" placeholder="分钟数">
+        <br>
+        <textarea id="note" rows="2" placeholder="笔记"></textarea>
+        <br>
+        <button onclick="add()">添加记录</button>
     </div>
-    <div class="form-group">
-        <label>花费分钟数：</label>
-        <input type="number" id="timeSpent" placeholder="例如 30">
-    </div>
-    <div class="form-group">
-        <label>笔记：</label>
-        <textarea id="note" rows="2" placeholder="可选的笔记"></textarea>
-    </div>
-    <button onclick="addRecord()">➕ 添加记录</button>
     <hr>
-
-    <h3>📋 历史记录</h3>
-    <div id="recordList"></div>
+    <div id="list"></div>
 
     <script>
-        // ⚠️ 如果后端不在 localhost:5000，请修改这个地址
-        const API_BASE = 'http://127.0.0.1:5000';
+        const API = 'http://127.0.0.1:5000';
+        let currentTitle = '';
 
-        async function fetchRecords() {
-            const res = await fetch(`${API_BASE}/api/list`);
-            const records = await res.json();
-            renderRecords(records);
+        async function loadList() {
+            let res = await fetch(API + '/list');
+            let logs = await res.json();
+            let html = '';
+            for (let log of logs) {
+                html += `<div style="border:1px solid #ccc; margin:8px 0; padding:8px">
+                    <b>${log.problem_id}. ${log.problem_title}</b> 用时 ${log.time_spent} 分钟<br>
+                    笔记: ${log.note || '无'}<br>
+                    时间: ${new Date(log.created_at).toLocaleString()}<br>
+                    <button onclick="del(${log.id})">删除</button>
+                </div>`;
+            }
+            document.getElementById('list').innerHTML = html || '暂无记录';
         }
 
-        function renderRecords(records) {
-            const container = document.getElementById('recordList');
-            if (records.length === 0) {
-                container.innerHTML = '<p>暂无记录，添加一条吧～</p>';
-                return;
-            }
-            container.innerHTML = records.map(rec => `
-                <div class="record">
-                    <strong>题号 ${rec.problem_id}</strong> | 用时 ${rec.time_spent} 分钟<br>
-                    📝 笔记：${rec.note || '无'}<br>
-                    🕒 时间：${new Date(rec.created_at).toLocaleString()}
-                    <button class="delete-btn" onclick="deleteRecord(${rec.id})">删除</button>
-                </div>
-            `).join('');
+        async function loadTitle() {
+            let pid = document.getElementById('pid').value;
+            if (!pid) return;
+            let res = await fetch(API + '/title/' + pid);
+            let data = await res.json();
+            currentTitle = data.title;
+            document.getElementById('titleDisplay').innerText = currentTitle;
         }
 
-        async function addRecord() {
-            const problem_id = document.getElementById('problemId').value;
-            const time_spent = document.getElementById('timeSpent').value;
-            const note = document.getElementById('note').value;
-
-            if (!problem_id || !time_spent) {
-                alert('请填写题号和用时');
-                return;
+        async function add() {
+            let pid = document.getElementById('pid').value;
+            let time = document.getElementById('time').value;
+            let note = document.getElementById('note').value;
+            if (!pid || !time) return alert('请填写题号和分钟数');
+            if (!currentTitle) {
+                await loadTitle();
+                if (!currentTitle) {
+                    alert('无法获取题目标题，请检查题号');
+                    return;
+                }
             }
-
-            const res = await fetch(`${API_BASE}/api/add`, {
+            await fetch(API + '/add', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    problem_id: parseInt(problem_id),
-                    time_spent: parseInt(time_spent),
+                    problem_id: parseInt(pid),
+                    problem_title: currentTitle,
+                    time_spent: parseInt(time),
                     note: note
                 })
             });
-            if (res.ok) {
-                alert('添加成功');
-                document.getElementById('problemId').value = '';
-                document.getElementById('timeSpent').value = '';
-                document.getElementById('note').value = '';
-                fetchRecords();
-            } else {
-                alert('添加失败，请检查后端');
+            document.getElementById('pid').value = '';
+            document.getElementById('time').value = '';
+            document.getElementById('note').value = '';
+            document.getElementById('titleDisplay').innerText = '';
+            currentTitle = '';
+            loadList();
+        }
+
+        async function del(id) {
+            if (confirm('删除？')) {
+                await fetch(API + '/delete/' + id, {method: 'DELETE'});
+                loadList();
             }
         }
 
-        async function deleteRecord(id) {
-            if (!confirm('确定删除吗？')) return;
-            const res = await fetch(`${API_BASE}/api/delete/${id}`, { method: 'DELETE' });
-            if (res.ok) {
-                alert('删除成功');
-                fetchRecords();
-            } else {
-                alert('删除失败');
-            }
-        }
-
-        fetchRecords();
+        loadList();
     </script>
 </body>
 </html>
